@@ -1,0 +1,11 @@
+[
+  {
+    "name": "naiveproxy",
+    "repo": "klzgrad/naiveproxy",
+    "formula": "Formula/naiveproxy.rb",
+    "asset_filters": [
+      "-mac-arm64-arm64.tar.xz",
+      "-mac-x64-x64.tar.xz"
+    ]
+  }
+]

@@ -1,0 +1,36 @@
+name: Daily Homebrew Tap Update
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Dependencies
+        run: pip install requests
+
+      - name: Run Generic Updater
+        run: python scripts/update_formula.py
+
+      - name: Commit and Push
+        if: env.HAS_UPDATE == 'true'
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/*.rb
+          git commit -m "Automated Update: ${{ env.UPDATE_MSG }}"
+          git push
