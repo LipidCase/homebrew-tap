@@ -1,14 +1,14 @@
 class Naiveproxy < Formula
   desc "Make a fortune quietly"
   homepage "https://github.com/klzgrad/naiveproxy"
-  version "148.0.7778.96-5"
+  version "149.0.7827.114-1"
 
   if Hardware::CPU.arm?
     url "https://github.com/klzgrad/naiveproxy/releases/download/v#{version}/naiveproxy-v#{version}-mac-arm64-arm64.tar.xz"
-    sha256 "9a9e7722a038c0cd9775cabdfccfecbb39139839250bd0f77bb855b086f4e691"
+    sha256 "1ed97eccc8fc4275bddde6ddb395e2a8221eaa05626998810531118297ee36ba"
   else
     url "https://github.com/klzgrad/naiveproxy/releases/download/v#{version}/naiveproxy-v#{version}-mac-x64-x64.tar.xz"
-    sha256 "b8e6f6348a7384f30409d67e2c35a6d14de64fc6fcf908385dcf5283bf8815cb"
+    sha256 "caced066717e73f8236d3652ed46b670dffe812a80bc490181851aad3e39534c"
   end
 
   def install
