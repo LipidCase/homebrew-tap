@@ -7,5 +7,13 @@
       "-mac-arm64-arm64.tar.xz",
       "-mac-x64-x64.tar.xz"
     ]
+  },
+  {
+    "name": "xray",
+    "repo": "XTLS/Xray-core",
+    "formula": "Formula/xray.rb",
+    "prerelease": true,
+    "url_template": "https://github.com/XTLS/Xray-core/archive/refs/tags/v{version}.tar.gz",
+    "version_regex": "archive/refs/tags/v?([^\\s\"]+)\\.tar\\.gz"
   }
 ]
