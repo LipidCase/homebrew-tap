@@ -3,17 +3,24 @@
     "name": "naiveproxy",
     "repo": "klzgrad/naiveproxy",
     "formula": "Formula/naiveproxy.rb",
-    "asset_filters": [
-      "-mac-arm64-arm64.tar.xz",
-      "-mac-x64-x64.tar.xz"
-    ]
+    "prerelease": false,
+    "assets": {
+      "macos-arm64": "naiveproxy-{tag}-mac-arm64-arm64.tar.xz",
+      "macos-x86_64": "naiveproxy-{tag}-mac-x64-x64.tar.xz",
+      "linux-arm64": "naiveproxy-{tag}-linux-arm64.tar.xz",
+      "linux-x86_64": "naiveproxy-{tag}-linux-x64.tar.xz"
+    }
   },
   {
     "name": "xray",
     "repo": "XTLS/Xray-core",
     "formula": "Formula/xray.rb",
     "prerelease": true,
-    "url_template": "https://github.com/XTLS/Xray-core/archive/refs/tags/v{version}.tar.gz",
-    "version_regex": "archive/refs/tags/v?([^\\s\"]+)\\.tar\\.gz"
+    "assets": {
+      "macos-arm64": "Xray-macos-arm64-v8a.zip",
+      "macos-x86_64": "Xray-macos-64.zip",
+      "linux-arm64": "Xray-linux-arm64-v8a.zip",
+      "linux-x86_64": "Xray-linux-64.zip"
+    }
   }
 ]

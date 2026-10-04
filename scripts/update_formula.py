@@ -1,121 +1,220 @@
-import os, re, requests, hashlib, json
+#!/usr/bin/env python3
+"""Track published upstream releases and pin their platform-specific binaries."""
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import sys
+import time
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlencode
+from urllib.request import Request, urlopen
+
+ROOT = Path(__file__).resolve().parents[1]
+VERSION = re.compile(r"v?(\d+(?:\.\d+)+(?:-\d+)?)\Z")
+VERSION_LINE = re.compile(r'^  version "([^"]+)"$', re.MULTILINE)
+ASSET_BLOCK = re.compile(
+    r'(?P<url_line>^      url ")(?P<url>[^"\n]+)(?P<between>"\n      sha256 ")'
+    r'(?P<sha>[a-f0-9]{64})(?P<end>" # (?P<platform>[\w-]+)$)',
+    re.MULTILINE,
+)
 
 
-def get_sha256(url):
-    print(f"  download from {url}")
-    resp = requests.get(url, stream=True, timeout=30)
-    resp.raise_for_status()
-    sha256 = hashlib.sha256()
-    print("  compute sha256...")
-    for chunk in resp.iter_content(chunk_size=8192):
-        sha256.update(chunk)
-    return sha256.hexdigest()
+def version_key(version):
+    """Upstreams use numeric versions, with an optional numeric rebuild suffix."""
+    match = VERSION.fullmatch(version)
+    if not match:
+        raise ValueError(f"unsupported upstream version: {version!r}")
+    base, _, rebuild = match[1].partition("-")
+    numbers = [int(part) for part in base.split(".")]
+    while numbers and numbers[-1] == 0:
+        numbers.pop()
+    return tuple(numbers), int(rebuild or 0)
 
 
-def update_app(app):
-    print(f"check {app['name']}...")
+class GitHub:
+    def __init__(self):
+        self.token = os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN")
 
-    if app.get("prerelease"):
-        api_url = f"https://api.github.com/repos/{app['repo']}/releases"
-        release_resp = requests.get(api_url, timeout=30)
-        release_resp.raise_for_status()
-        releases = release_resp.json()
-        release = next((r for r in releases if not r.get("draft")), None)
-        if not release:
-            raise RuntimeError("no valid release found in releases list")
-    else:
-        api_url = f"https://api.github.com/repos/{app['repo']}/releases/latest"
-        release_resp = requests.get(api_url, timeout=30)
-        release_resp.raise_for_status()
-        release = release_resp.json()
+    def request(self, url, *, api=False, checksum=False):
+        headers = {"User-Agent": "homebrew-tap-updater"}
+        if api:
+            headers["Accept"] = "application/vnd.github+json"
+            headers["X-GitHub-Api-Version"] = "2022-11-28"
+            if self.token:
+                headers["Authorization"] = f"Bearer {self.token}"
+        for attempt in range(3):
+            try:
+                with urlopen(Request(url, headers=headers), timeout=60) as response:
+                    if checksum:
+                        digest = hashlib.sha256()
+                        for chunk in iter(lambda: response.read(1024 * 1024), b""):
+                            digest.update(chunk)
+                        return digest.hexdigest()
+                    return json.load(response)
+            except HTTPError as error:
+                if error.code not in (429, 500, 502, 503, 504) or attempt == 2:
+                    raise
+            except (URLError, TimeoutError):
+                if attempt == 2:
+                    raise
+            time.sleep(2 ** attempt)
 
-    new_version = release["tag_name"].lstrip("v")
-
-    with open(app["formula"], "r") as f:
-        content = f.read()
-
-    if 'resource "' in content:
-        main_body, resources_body = content.split('resource "', 1)
-        resources_body = 'resource "' + resources_body
-    else:
-        main_body = content
-        resources_body = ""
-
-    if "version_regex" in app:
-        version_match = re.search(app["version_regex"], main_body)
-        if not version_match:
-            raise RuntimeError(
-                f"failed to extract version using regex: {app['version_regex']}"
+    def releases(self, repo):
+        page = 1
+        while True:
+            batch = self.request(
+                f"https://api.github.com/repos/{repo}/releases?"
+                + urlencode({"per_page": 100, "page": page}),
+                api=True,
             )
-        current_version = version_match.group(1)
-    else:
-        version_match = re.search(r'version\s+"(.*?)"', main_body)
-        if not version_match:
-            raise RuntimeError("no explicit 'version' line found in formula")
-        current_version = version_match.group(1)
+            yield from batch
+            if len(batch) < 100:
+                return
+            page += 1
 
-    if new_version == current_version:
-        print(f"  {app['name']} is the newest version ({current_version})")
-        return False
-
-    print(f"  update {current_version} -> {new_version}")
-
-    new_shas = []
-    if "url_template" in app:
-        new_url = app["url_template"].format(version=new_version)
-        new_shas.append(get_sha256(new_url))
-    else:
-        assets = release.get("assets", [])
-        asset_names = [a["name"] for a in assets]
-        for pattern in app["asset_filters"]:
-            matched = next((a for a in assets if pattern in a["name"]), None)
-            if not matched:
-                raise RuntimeError(
-                    f"asset pattern not found: {pattern}; available assets: {asset_names}"
-                )
-            asset_url = matched["browser_download_url"]
-            new_shas.append(get_sha256(asset_url))
-
-    if "url_template" in app:
-        main_body = re.sub(r'url\s+".*?"', f'url "{new_url}"', main_body, count=1)
-        main_body = re.sub(
-            r'sha256\s+".*?"', f'sha256 "{new_shas[0]}"', main_body, count=1
+    def release(self, repo, tag):
+        return self.request(
+            f"https://api.github.com/repos/{repo}/releases/tags/{quote(tag, safe='')}",
+            api=True,
         )
-    else:
-        main_body = re.sub(
-            r'version\s+".*?"', f'version "{new_version}"', main_body, count=1
-        )
-        old_shas = re.findall(r'sha256\s+"(.*?)"', main_body)
-        for i in range(len(new_shas)):
-            if i < len(old_shas):
-                main_body = main_body.replace(old_shas[i], new_shas[i], 1)
 
-    updated_content = main_body + resources_body
-    with open(app["formula"], "w") as f:
-        f.write(updated_content)
+    def checksum(self, asset):
+        url = asset["browser_download_url"]
+        print(f"  verify {asset['name']}", flush=True)
+        digest = self.request(url, checksum=True)
+        upstream_digest = asset.get("digest")
+        if upstream_digest and upstream_digest != f"sha256:{digest}":
+            raise ValueError(f"upstream digest mismatch: {asset['name']}")
+        return digest
 
-    return new_version
+
+def select_release(app, releases):
+    eligible = [release for release in releases if not release.get("draft")
+                and (app["prerelease"] or not release.get("prerelease"))]
+    if not eligible:
+        raise ValueError(f"no eligible published release for {app['name']}")
+    # API ordering is not a version ordering. Old releases can be published later.
+    return max(eligible, key=lambda release: version_key(release["tag_name"]))
+
+
+def asset_url(app, tag, filename):
+    return f"https://github.com/{app['repo']}/releases/download/{tag}/{filename}"
+
+
+def formula_assets(app, content, tag):
+    matches = list(ASSET_BLOCK.finditer(content))
+    platforms = [match["platform"] for match in matches]
+    if len(platforms) != len(set(platforms)) or set(platforms) != set(app["assets"]):
+        raise ValueError(f"formula platform markers do not match manifest: {app['name']}")
+    for match in matches:
+        filename = app["assets"][match["platform"]].format(tag=tag)
+        if match["url"] != asset_url(app, tag, filename):
+            raise ValueError(f"unexpected pinned URL for {app['name']}/{match['platform']}")
+    return matches
+
+
+def release_assets(app, release):
+    tag = release["tag_name"]
+    result = {}
+    for platform, template in app["assets"].items():
+        filename = template.format(tag=tag)
+        matches = [asset for asset in release["assets"] if asset["name"] == filename]
+        if len(matches) != 1:
+            raise ValueError(f"expected exactly one release asset: {filename}")
+        asset = matches[0]
+        if asset.get("state") != "uploaded" or asset.get("size", 0) <= 0:
+            raise ValueError(f"release asset is not ready: {filename}")
+        if asset["browser_download_url"] != asset_url(app, tag, filename):
+            raise ValueError(f"unexpected upstream asset URL: {filename}")
+        result[platform] = asset
+    return result
+
+
+def formula_version(content):
+    versions = VERSION_LINE.findall(content)
+    if not versions:
+        versions = list(set(re.findall(r'https://github\.com/[^/]+/[^/]+/releases/download/v([^/"\n]+)/', content)))
+    if len(versions) != 1:
+        raise ValueError("expected one formula version; inconsistent pinned URL versions")
+    version_key(versions[0])
+    return versions[0]
+
+
+def plan_update(app, client, *, root=None, check=False):
+    path = (ROOT if root is None else root) / app["formula"]
+    content = path.read_text()
+    current = formula_version(content)
+    current_tag = f"v{current}"
+    matches = formula_assets(app, content, current_tag)
+    release = (client.release(app["repo"], current_tag) if check else
+               select_release(app, client.releases(app["repo"])))
+    if release.get("draft") or (release.get("prerelease") and not app["prerelease"]):
+        raise ValueError(f"release violates configured channel: {release['tag_name']}")
+    new_version = VERSION.fullmatch(release["tag_name"])[1]
+    assets = release_assets(app, release)
+    if not check and version_key(new_version) <= version_key(current):
+        print(f"  {app['name']}: {current} is current; no downgrade")
+        return None
+    shas = {platform: client.checksum(asset) for platform, asset in assets.items()}
+    if check:
+        for match in matches:
+            if match["sha"] != shas[match["platform"]]:
+                raise ValueError(f"pinned checksum mismatch: {app['name']}/{match['platform']}")
+        print(f"  {app['name']}: all pinned artifacts verified")
+        return None
+
+    def replace_asset(match):
+        platform = match["platform"]
+        return (match["url_line"] + assets[platform]["browser_download_url"]
+                + match["between"] + shas[platform] + match["end"])
+
+    updated = ASSET_BLOCK.sub(replace_asset, content)
+    updated = VERSION_LINE.sub(f'  version "{new_version}"', updated)
+    # A new upstream version resets Homebrew's packaging revision.
+    updated = re.sub(r"^  revision \d+\n", "", updated, flags=re.MULTILINE)
+    formula_assets(app, updated, release["tag_name"])
+    print(f"  {app['name']}: {current} -> {new_version}")
+    return path, updated, f"{app['name']} v{new_version}"
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument("--dry-run", action="store_true", help="verify updates without writing")
+    modes.add_argument("--check", action="store_true", help="verify all currently pinned artifacts")
+    args = parser.parse_args(argv)
+    client = GitHub()
+    apps = json.loads((ROOT / "scripts/apps.json").read_text())
+    plans = []
+    # Prepare every update before writing anything or exporting success to Actions.
+    for app in apps:
+        print(f"check {app['name']}...", flush=True)
+        plan = plan_update(app, client, check=args.check)
+        if plan:
+            plans.append(plan)
+    if args.dry_run or args.check:
+        return 0
+    for path, content, _ in plans:
+        temporary = path.with_suffix(".rb.tmp")
+        temporary.write_text(content)
+        temporary.replace(path)
+    message = " & ".join(plan[2] for plan in plans)
+    output = os.environ.get("GITHUB_OUTPUT")
+    if output:
+        with open(output, "a") as stream:
+            stream.write(f"changed={'true' if plans else 'false'}\nmessage={message}\n")
+    if message:
+        print(f"updates: {message}")
+    return 0
 
 
 if __name__ == "__main__":
-    with open("scripts/apps.json", "r") as f:
-        apps = json.load(f)
-
-    updates = []
-    for app in apps:
-        try:
-            version = update_app(app)
-            if version:
-                updates.append(f"{app['name']} v{version}")
-        except Exception as e:
-            print(f"  update {app['name']} failed: {e}")
-
-    if updates:
-        msg = " & ".join(updates)
-        github_env = os.getenv("GITHUB_ENV")
-        if github_env:
-            with open(github_env, "a") as f:
-                f.write(f"UPDATE_MSG={msg}\n")
-                f.write(f"HAS_UPDATE=true\n")
-        else:
-            print(f"updates: {msg}")
+    try:
+        sys.exit(main())
+    except Exception as error:
+        print(f"update failed: {error}", file=sys.stderr)
+        sys.exit(1)

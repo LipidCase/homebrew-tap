@@ -5,32 +5,70 @@ on:
     - cron: '0 0 * * *'
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: update-formula
+  cancel-in-progress: false
+
 jobs:
-  update:
-    runs-on: ubuntu-latest
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      changed: ${{ steps.update.outputs.changed }}
+      message: ${{ steps.update.outputs.message }}
+      base_sha: ${{ steps.base.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -v
+      - name: Record the tested base commit
+        id: base
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Prepare updates
+        id: update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python scripts/update_formula.py
+      - uses: actions/upload-artifact@v4
+        if: steps.update.outputs.changed == 'true'
+        with:
+          name: updated-formulae
+          path: Formula/*.rb
+          retention-days: 7
+
+  validate:
+    needs: prepare
+    if: needs.prepare.outputs.changed == 'true'
+    uses: ./.github/workflows/validate-formula.yml
+    with:
+      artifact: updated-formulae
+
+  publish:
+    needs: [prepare, validate]
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
         with:
-          python-version: '3.x'
-
-      - name: Install Dependencies
-        run: pip install requests
-
-      - name: Run Generic Updater
-        run: python scripts/update_formula.py
-
-      - name: Commit and Push
-        if: env.HAS_UPDATE == 'true'
+          ref: ${{ needs.prepare.outputs.base_sha }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: updated-formulae
+          path: Formula
+      - name: Commit validated updates
+        env:
+          UPDATE_MESSAGE: ${{ needs.prepare.outputs.message }}
+          TARGET_BRANCH: ${{ github.ref_name }}
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add Formula/*.rb
-          git commit -m "Automated Update: ${{ env.UPDATE_MSG }}"
-          git push
+          git diff --cached --quiet && exit 0
+          git commit -m "Automated Update: $UPDATE_MESSAGE"
+          # A concurrent branch change causes rejection; never force or rebase untested files.
+          git push origin "HEAD:$TARGET_BRANCH"

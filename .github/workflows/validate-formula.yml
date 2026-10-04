@@ -1,0 +1,39 @@
+name: Validate Formulae
+
+on:
+  workflow_call:
+    inputs:
+      artifact:
+        description: Optional formula artifact prepared by the updater
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15-intel, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        if: inputs.artifact != ''
+        with:
+          name: ${{ inputs.artifact }}
+          path: Formula
+      - name: Validate in Homebrew Docker image
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace:ro" \
+            ghcr.io/homebrew/brew:latest \
+            bash /workspace/scripts/validate_formula.sh
+      - name: Validate on macOS
+        if: runner.os == 'macOS'
+        env:
+          HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
+        run: bash scripts/validate_formula.sh
