@@ -2,7 +2,6 @@ class Xray < Formula
   desc "Platform for building proxies to bypass network restrictions"
   homepage "https://xtls.github.io/"
   license all_of: ["MPL-2.0", "CC-BY-SA-4.0"]
-  revision 1
 
   livecheck do
     skip "Prereleases are tracked by scripts/update_formula.py"
@@ -10,25 +9,25 @@ class Xray < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/XTLS/Xray-core/releases/download/v26.9.30/Xray-macos-arm64-v8a.zip"
-      sha256 "4b363bd924df5bf09f87bd445755ff8e5742b9a8a0480cda261061416c3c7dce" # macos-arm64
+      url "https://github.com/XTLS/Xray-core/releases/download/v26.10.10/Xray-macos-arm64-v8a.zip"
+      sha256 "7b1711eaeefd90f27082cf49c311aa57dad44ac13146faab3f0c1601158ea6c8" # macos-arm64
     end
 
     on_intel do
-      url "https://github.com/XTLS/Xray-core/releases/download/v26.9.30/Xray-macos-64.zip"
-      sha256 "1f366aaf21d3c3003d1556d066c4e08f9dd62d1f96555ecedde85b397df0f684" # macos-x86_64
+      url "https://github.com/XTLS/Xray-core/releases/download/v26.10.10/Xray-macos-64.zip"
+      sha256 "f99119d4aa662ae2e9a2adf57eccf3dad1b43035ae2e06ccc3949c8256e33fd0" # macos-x86_64
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/XTLS/Xray-core/releases/download/v26.9.30/Xray-linux-arm64-v8a.zip"
-      sha256 "9886f077f9fd8e6713b84c377c1c7db4e53b9bfa8c276a5bd12561139522b473" # linux-arm64
+      url "https://github.com/XTLS/Xray-core/releases/download/v26.10.10/Xray-linux-arm64-v8a.zip"
+      sha256 "58e339e67827220175b3a1c6f66f48ccd086b79209f30ba1c0bcb47885d4c22a" # linux-arm64
     end
 
     on_intel do
-      url "https://github.com/XTLS/Xray-core/releases/download/v26.9.30/Xray-linux-64.zip"
-      sha256 "f851110beaff16e78d643f0ccfd9524b4a44dfd59bae3e34bb52bba378f7690e" # linux-x86_64
+      url "https://github.com/XTLS/Xray-core/releases/download/v26.10.10/Xray-linux-64.zip"
+      sha256 "72a5fde819713a103c6fc26a87aa025c1518c918a34eba4bc38d64dc0728e5d9" # linux-x86_64
     end
   end
 
