@@ -1,7 +1,7 @@
 class Naiveproxy < Formula
   desc "Proxy client using Chromium's network stack to camouflage traffic"
   homepage "https://github.com/klzgrad/naiveproxy"
-  version "154.0.8037.49-4"
+  version "154.0.8037.49-5"
   license "BSD-3-Clause"
 
   livecheck do
@@ -12,25 +12,25 @@ class Naiveproxy < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/klzgrad/naiveproxy/releases/download/v154.0.8037.49-4/naiveproxy-v154.0.8037.49-4-mac-arm64-arm64.tar.xz"
-      sha256 "aa91a9f1d743a85db65acdf2bd910c1bba9ca8831687fd947351880e2997b794" # macos-arm64
+      url "https://github.com/klzgrad/naiveproxy/releases/download/v154.0.8037.49-5/naiveproxy-v154.0.8037.49-5-mac-arm64-arm64.tar.xz"
+      sha256 "8b330140e0fed15fae71732cefee16f052325c30352ae3e5638a1e9f9d54d542" # macos-arm64
     end
 
     on_intel do
-      url "https://github.com/klzgrad/naiveproxy/releases/download/v154.0.8037.49-4/naiveproxy-v154.0.8037.49-4-mac-x64-x64.tar.xz"
-      sha256 "ae0fb930d982e6ec5d6a6012ec2b87bfc69d8953ad8b0a3517cb609eea9a6af4" # macos-x86_64
+      url "https://github.com/klzgrad/naiveproxy/releases/download/v154.0.8037.49-5/naiveproxy-v154.0.8037.49-5-mac-x64-x64.tar.xz"
+      sha256 "a3904193bd8d099eb034366c19a019f22573171aeece34e8d0206a92f0b8141d" # macos-x86_64
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/klzgrad/naiveproxy/releases/download/v154.0.8037.49-4/naiveproxy-v154.0.8037.49-4-linux-arm64.tar.xz"
-      sha256 "dfa99dc36dafa1ee7f97f48bde14e9ee96bc4011e5cc10c7881fa7883859a036" # linux-arm64
+      url "https://github.com/klzgrad/naiveproxy/releases/download/v154.0.8037.49-5/naiveproxy-v154.0.8037.49-5-linux-arm64.tar.xz"
+      sha256 "8f4d917fa39a5d8cf1c17fc12ffd99ba84c015b62b43461d09cc074ca4114d8d" # linux-arm64
     end
 
     on_intel do
-      url "https://github.com/klzgrad/naiveproxy/releases/download/v154.0.8037.49-4/naiveproxy-v154.0.8037.49-4-linux-x64.tar.xz"
-      sha256 "9d765620b90f7c60eb40c7c68b2f82537757cc52a8693dee7a00f8ba8b13dfd0" # linux-x86_64
+      url "https://github.com/klzgrad/naiveproxy/releases/download/v154.0.8037.49-5/naiveproxy-v154.0.8037.49-5-linux-x64.tar.xz"
+      sha256 "80214dfea1767f6ecf63a3a79dc9f48b203460f51abc609357fff48dd5844c7d" # linux-x86_64
     end
   end
 
