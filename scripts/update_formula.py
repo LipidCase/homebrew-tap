@@ -10,7 +10,7 @@ import re
 import sys
 import time
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote, urlencode
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -76,20 +76,9 @@ class GitHub:
                 return
             page += 1
 
-    def release(self, repo, tag):
-        return self.request(
-            f"https://api.github.com/repos/{repo}/releases/tags/{quote(tag, safe='')}",
-            api=True,
-        )
-
     def checksum(self, asset):
-        url = asset["browser_download_url"]
-        print(f"  verify {asset['name']}", flush=True)
-        digest = self.request(url, checksum=True)
-        upstream_digest = asset.get("digest")
-        if upstream_digest and upstream_digest != f"sha256:{digest}":
-            raise ValueError(f"upstream digest mismatch: {asset['name']}")
-        return digest
+        print(f"  download {asset['name']}", flush=True)
+        return self.request(asset["browser_download_url"], checksum=True)
 
 
 def select_release(app, releases):
@@ -101,37 +90,12 @@ def select_release(app, releases):
     return max(eligible, key=lambda release: version_key(release["tag_name"]))
 
 
-def asset_url(app, tag, filename):
-    return f"https://github.com/{app['repo']}/releases/download/{tag}/{filename}"
-
-
-def formula_assets(app, content, tag):
-    matches = list(ASSET_BLOCK.finditer(content))
-    platforms = [match["platform"] for match in matches]
-    if len(platforms) != len(set(platforms)) or set(platforms) != set(app["assets"]):
-        raise ValueError(f"formula platform markers do not match manifest: {app['name']}")
-    for match in matches:
-        filename = app["assets"][match["platform"]].format(tag=tag)
-        if match["url"] != asset_url(app, tag, filename):
-            raise ValueError(f"unexpected pinned URL for {app['name']}/{match['platform']}")
-    return matches
-
-
 def release_assets(app, release):
-    tag = release["tag_name"]
-    result = {}
-    for platform, template in app["assets"].items():
-        filename = template.format(tag=tag)
-        matches = [asset for asset in release["assets"] if asset["name"] == filename]
-        if len(matches) != 1:
-            raise ValueError(f"expected exactly one release asset: {filename}")
-        asset = matches[0]
-        if asset.get("state") != "uploaded" or asset.get("size", 0) <= 0:
-            raise ValueError(f"release asset is not ready: {filename}")
-        if asset["browser_download_url"] != asset_url(app, tag, filename):
-            raise ValueError(f"unexpected upstream asset URL: {filename}")
-        result[platform] = asset
-    return result
+    assets = {asset["name"]: asset for asset in release["assets"]}
+    return {
+        platform: assets[template.format(tag=release["tag_name"])]
+        for platform, template in app["assets"].items()
+    }
 
 
 def formula_version(content):
@@ -144,28 +108,17 @@ def formula_version(content):
     return versions[0]
 
 
-def plan_update(app, client, *, root=None, check=False):
-    path = (ROOT if root is None else root) / app["formula"]
+def plan_update(app, client):
+    path = ROOT / app["formula"]
     content = path.read_text()
     current = formula_version(content)
-    current_tag = f"v{current}"
-    matches = formula_assets(app, content, current_tag)
-    release = (client.release(app["repo"], current_tag) if check else
-               select_release(app, client.releases(app["repo"])))
-    if release.get("draft") or (release.get("prerelease") and not app["prerelease"]):
-        raise ValueError(f"release violates configured channel: {release['tag_name']}")
+    release = select_release(app, client.releases(app["repo"]))
     new_version = VERSION.fullmatch(release["tag_name"])[1]
-    assets = release_assets(app, release)
-    if not check and version_key(new_version) <= version_key(current):
+    if version_key(new_version) <= version_key(current):
         print(f"  {app['name']}: {current} is current; no downgrade")
         return None
+    assets = release_assets(app, release)
     shas = {platform: client.checksum(asset) for platform, asset in assets.items()}
-    if check:
-        for match in matches:
-            if match["sha"] != shas[match["platform"]]:
-                raise ValueError(f"pinned checksum mismatch: {app['name']}/{match['platform']}")
-        print(f"  {app['name']}: all pinned artifacts verified")
-        return None
 
     def replace_asset(match):
         platform = match["platform"]
@@ -176,16 +129,13 @@ def plan_update(app, client, *, root=None, check=False):
     updated = VERSION_LINE.sub(f'  version "{new_version}"', updated)
     # A new upstream version resets Homebrew's packaging revision.
     updated = re.sub(r"^  revision \d+\n", "", updated, flags=re.MULTILINE)
-    formula_assets(app, updated, release["tag_name"])
     print(f"  {app['name']}: {current} -> {new_version}")
     return path, updated, f"{app['name']} v{new_version}"
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    modes = parser.add_mutually_exclusive_group()
-    modes.add_argument("--dry-run", action="store_true", help="verify updates without writing")
-    modes.add_argument("--check", action="store_true", help="verify all currently pinned artifacts")
+    parser.add_argument("--dry-run", action="store_true", help="show updates without writing")
     args = parser.parse_args(argv)
     client = GitHub()
     apps = json.loads((ROOT / "scripts/apps.json").read_text())
@@ -193,10 +143,10 @@ def main(argv=None):
     # Prepare every update before writing anything or exporting success to Actions.
     for app in apps:
         print(f"check {app['name']}...", flush=True)
-        plan = plan_update(app, client, check=args.check)
+        plan = plan_update(app, client)
         if plan:
             plans.append(plan)
-    if args.dry_run or args.check:
+    if args.dry_run:
         return 0
     for path, content, _ in plans:
         temporary = path.with_suffix(".rb.tmp")

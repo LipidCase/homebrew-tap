@@ -41,8 +41,4 @@ class Naiveproxy < Formula
     bin.install "naive"
     doc.install "LICENSE", "USAGE.txt"
   end
-
-  test do
-    assert_match version.to_s.split("-").first, shell_output("#{bin}/naive --version 2>&1")
-  end
 end

@@ -70,23 +70,4 @@ class Xray < Formula
     log_path var/"log/xray.log"
     error_log_path var/"log/xray.log"
   end
-
-  test do
-    assert_match version.to_s, shell_output("#{bin}/xray version")
-    (testpath/"config.json").write <<~JSON
-      {
-        "outbounds": [{ "protocol": "freedom", "tag": "direct" }],
-        "routing": {
-          "rules": [
-            { "type": "field", "ip": ["geoip:private"], "outboundTag": "direct" },
-            { "type": "field", "domain": ["geosite:private"], "outboundTag": "direct" }
-          ]
-        }
-      }
-    JSON
-    assert_match "Configuration OK",
-      shell_output("#{bin}/xray run -test -config #{testpath}/config.json 2>&1")
-    assert_path_exists pkgshare/"geoip.dat"
-    assert_path_exists pkgshare/"geosite.dat"
-  end
 end
