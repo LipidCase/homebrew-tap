@@ -9,25 +9,25 @@ class Xray < Formula
 
   on_macos do
     on_arm do
-      url "https://github.com/XTLS/Xray-core/releases/download/v26.10.31/Xray-macos-arm64-v8a.zip"
-      sha256 "0a05dca3bd311b0bc5a89c7ce56350cab1e829e131e4b2bcd48eb304fac07e9a" # macos-arm64
+      url "https://github.com/XTLS/Xray-core/releases/download/v26.11.9/Xray-macos-arm64-v8a.zip"
+      sha256 "233f0c66681cd0726f81a6b2b6ed6a5710869e312047b522e46ed53035bebd26" # macos-arm64
     end
 
     on_intel do
-      url "https://github.com/XTLS/Xray-core/releases/download/v26.10.31/Xray-macos-64.zip"
-      sha256 "37c60b63c77ef5edcfb46a0d70349f7d96e0c132e6a356ead4fd20aeeacc5c75" # macos-x86_64
+      url "https://github.com/XTLS/Xray-core/releases/download/v26.11.9/Xray-macos-64.zip"
+      sha256 "488963e676e06f5e48547f9dd38116aaca8de4234959b4272ae8f284e658dfd0" # macos-x86_64
     end
   end
 
   on_linux do
     on_arm do
-      url "https://github.com/XTLS/Xray-core/releases/download/v26.10.31/Xray-linux-arm64-v8a.zip"
-      sha256 "1811c8f1da0c3b6dc707ebaf1c8390e987ba39859a8f0a7aadd8526157f2ec8d" # linux-arm64
+      url "https://github.com/XTLS/Xray-core/releases/download/v26.11.9/Xray-linux-arm64-v8a.zip"
+      sha256 "64ed6858982a7f5eb85d88b811089063bd4f17561f4c8f44e0f1dc8e6f6430be" # linux-arm64
     end
 
     on_intel do
-      url "https://github.com/XTLS/Xray-core/releases/download/v26.10.31/Xray-linux-64.zip"
-      sha256 "e4bd9119f50ae7c41658b1abd0679ae06f98bd864a2907ff33f2f2cf7081b214" # linux-x86_64
+      url "https://github.com/XTLS/Xray-core/releases/download/v26.11.9/Xray-linux-64.zip"
+      sha256 "b651f7e1d9966ee2c1b1ee1bf8b52c72771824d3065dce96bbc8bcc19ed95f82" # linux-x86_64
     end
   end
 
